@@ -566,7 +566,7 @@ def get_map_json(request, **kwargs):
 
 
 # Reto: Obtener cantidad de medidas en la consulta de los valores
-def get_map_json_reto(request, **kwargs): 
+def get_map_json_reto(request): 
     data_result = {}
 
     selectedMeasure = None
