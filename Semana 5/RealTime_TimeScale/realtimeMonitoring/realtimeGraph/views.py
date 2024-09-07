@@ -569,16 +569,10 @@ def get_map_json(request, **kwargs):
 def get_map_json_reto(request, **kwargs): 
     data_result = {}
 
-    measureParam = kwargs.get("measure", None)
     selectedMeasure = None
     measurements = Measurement.objects.all()
-
-    if measureParam != None:
-        selectedMeasure = Measurement.objects.filter(name=measureParam)[0]
-    elif measurements.count() > 0:
-        selectedMeasure = measurements[0]
-
     locations = Location.objects.all()
+
     try:
         start = datetime.fromtimestamp(
             float(request.GET.get("from", None)) / 1000
@@ -592,7 +586,7 @@ def get_map_json_reto(request, **kwargs):
         end = None
     if start == None and end == None:
         start = datetime.now()
-        start = start - dateutil.relativedelta.relativedelta(weeks=1)
+        start = start - dateutil.relativedelta.relativedelta(years=4)
         end = datetime.now()
         end += dateutil.relativedelta.relativedelta(days=1)
     elif end == None:
@@ -605,30 +599,34 @@ def get_map_json_reto(request, **kwargs):
     start_ts = int(start.timestamp() * 1000000)
     end_ts = int(end.timestamp() * 1000000)
 
-    for location in locations:
-        stations = Station.objects.filter(location=location)
-        locationData = Data.objects.filter(
-            station__in=stations, measurement__name=selectedMeasure.name, time__gte=start_ts, time__lte=end_ts,
-        )
-        if locationData.count() <= 0:
-            continue
-        minVal = locationData.aggregate(Min("min_value"))["min_value__min"]
-        maxVal = locationData.aggregate(Max("max_value"))["max_value__max"]
-        avgVal = locationData.aggregate(Avg("avg_value"))["avg_value__avg"]
-        totalMeasures = locationData.aggregate(Sum("length"))["length__sum"]
+    for measure in measurements:
+        selectedMeasure = measure
+        for location in locations:
+            stations = Station.objects.filter(location=location)
+            locationData = Data.objects.filter(
+                station__in=stations, measurement__name=selectedMeasure.name, time__gte=start_ts, time__lte=end_ts,
+            )
+            if locationData.count() <= 0:
+                continue
+            minVal = locationData.aggregate(Min("min_value"))["min_value__min"]
+            maxVal = locationData.aggregate(Max("max_value"))["max_value__max"]
+            avgVal = locationData.aggregate(Avg("avg_value"))["avg_value__avg"]
+            totalMeasures = locationData.aggregate(Sum("length"))["length__sum"]
 
-        data.append(
-            {
-                "name": f"{location.city.name}, {location.state.name}, {location.country.name}",
-                "lat": location.lat,
-                "lng": location.lng,
-                "population": stations.count(),
-                "min": minVal if minVal != None else 0,
-                "max": maxVal if maxVal != None else 0,
-                "avg": round(avgVal if avgVal != None else 0, 2),
-                "totalMeasures": totalMeasures if totalMeasures != None else 0
-            }
-        )
+            data.append(
+                {
+                    "measure": selectedMeasure.name,
+                    "units": selectedMeasure.unit,
+                    "name": f"{location.city.name}, {location.state.name}, {location.country.name}",
+                    "lat": location.lat,
+                    "lng": location.lng,
+                    "population": stations.count(),
+                    "min": minVal if minVal != None else 0,
+                    "max": maxVal if maxVal != None else 0,
+                    "avg": round(avgVal if avgVal != None else 0, 2),
+                    "totalMeasures": totalMeasures if totalMeasures != None else 0
+                }
+            )
 
     startFormatted = start.strftime("%d/%m/%Y") if start != None else " "
     endFormatted = end.strftime("%d/%m/%Y") if end != None else " "
